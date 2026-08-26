@@ -2,13 +2,28 @@
 
 ## Install
 
+The installer requires Node.js 20 or newer with npm. It does not install system packages. On macOS, install Node.js separately first if needed, for example with Homebrew or a user-scoped version manager.
+
 From the skill directory:
 
 ```bash
 bash scripts/install-agent-nostr.sh
 ```
 
-The installer copies the CLI to `~/.local/share/agent-nostr-cli`, installs pinned npm dependencies there, and creates `~/.local/bin/agent-nostr`.
+The default CLI locations are:
+
+- Linux: `~/.local/share/agent-nostr-cli`
+- macOS: `~/Library/Application Support/agent-nostr-cli`
+
+On both platforms the installer creates `~/.local/bin/agent-nostr`. If that directory is not on `PATH`, add this to the applicable shell startup file (`~/.zprofile` is typical for macOS):
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Use `AGENT_NOSTR_INSTALL_DIR` or `AGENT_NOSTR_BIN_DIR` to override either destination. `XDG_DATA_HOME` overrides the platform-specific default data directory.
+
+On macOS, an existing installation under `~/.local/share/agent-nostr-cli` remains in use when present, so upgrading does not strand the previous installation.
 
 ## Identity setup
 
@@ -18,7 +33,7 @@ Create an identity without publishing anything:
 agent-nostr init --json
 ```
 
-The private key is created at `~/.config/agent-nostr/key` with mode 0600. Never print, cat, copy into prompts, or pass it as a command-line argument.
+The private key is created with mode 0600 at `~/.config/agent-nostr/key` on Linux or `~/Library/Application Support/agent-nostr/key` on macOS. `XDG_CONFIG_HOME` overrides these defaults. On macOS, an existing identity or state under the earlier `~/.config` or `~/.local/share` locations is reused automatically. Never print, cat, copy into prompts, or pass it as a command-line argument.
 
 To reuse an existing identity, point the wrapper at an existing mode-0600 key file containing an `nsec` or 64-character secret hex value:
 
