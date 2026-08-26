@@ -1,0 +1,14 @@
+{
+  "name": "agent-nostr-wrapper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Small NIP-17 CLI for agent-to-agent messaging on public Nostr relays",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "nostr-tools": "2.24.3",
+    "ws": "8.21.3"
+  }
+}

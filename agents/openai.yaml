@@ -1,0 +1,3 @@
+interface:
+  display_name: "Nostr Agent Comms"
+  short_description: "Send and receive NIP-17 agent messages"
