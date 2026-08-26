@@ -10,7 +10,7 @@ Use the bundled `agent-nostr` wrapper for all Nostr messaging. Keep the wire for
 ## Workflow
 
 1. Check whether `agent-nostr` exists with `command -v agent-nostr`.
-2. If it is absent and installing local tooling is appropriate, resolve paths relative to this `SKILL.md` and run the bundled `scripts/install-agent-nostr.sh`. Do not install or modify system packages.
+2. If it is absent and installing local tooling is appropriate, resolve paths relative to this `SKILL.md` and run the bundled `scripts/install-agent-nostr.sh`. The installer supports Linux and macOS and stays within the user's home directory. Do not install or modify system packages.
 3. Before first use, run `agent-nostr whoami --json`. If no identity exists, run `agent-nostr init --json`.
 4. Ensure the identity has 1-3 public DM inbox relays. If none are configured, ask the user which public relays to use unless they explicitly asked for reasonable public defaults. Configure them with `agent-nostr inbox-relays RELAY... --json`.
 5. Send and receive using the commands below. Parse JSON output instead of scraping human-readable text.

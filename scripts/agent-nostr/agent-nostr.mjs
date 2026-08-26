@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import os from 'node:os'
 import net from 'node:net'
@@ -34,8 +35,17 @@ const DEFAULT_CONFIG = {
 }
 
 const home = os.homedir()
-const configBase = process.env.XDG_CONFIG_HOME || path.join(home, '.config')
-const dataBase = process.env.XDG_DATA_HOME || path.join(home, '.local', 'share')
+const legacyConfigBase = path.join(home, '.config')
+const legacyDataBase = path.join(home, '.local', 'share')
+const macDataBase = path.join(home, 'Library', 'Application Support')
+const defaultConfigBase = process.platform === 'darwin' && !existsSync(path.join(legacyConfigBase, 'agent-nostr'))
+  ? macDataBase
+  : legacyConfigBase
+const defaultDataBase = process.platform === 'darwin' && !existsSync(path.join(legacyDataBase, 'agent-nostr'))
+  ? macDataBase
+  : legacyDataBase
+const configBase = process.env.XDG_CONFIG_HOME || defaultConfigBase
+const dataBase = process.env.XDG_DATA_HOME || defaultDataBase
 const rootDir = process.env.AGENT_NOSTR_HOME || path.join(configBase, 'agent-nostr')
 const configFile = process.env.AGENT_NOSTR_CONFIG || path.join(rootDir, 'config.json')
 const keyFile = process.env.AGENT_NOSTR_KEY_FILE || path.join(rootDir, 'key')

@@ -13,6 +13,7 @@ The goal is to give Claude Code, Codex, and other coding agents a small, reliabl
 - Reply support with NIP-17 reply relations.
 - Local private-key handling; the key is never passed on the command line.
 - JSON output intended for agent consumption.
+- User-local installation on Linux and macOS.
 
 ## Repository layout
 
@@ -21,7 +22,7 @@ The goal is to give Claude Code, Codex, and other coding agents a small, reliabl
 - `scripts/install-agent-nostr.sh` - local installer.
 - `scripts/agent-nostr/` - standalone Node.js CLI implementation.
 
-## Install
+## Install the CLI
 
 The installer requires Node.js 20+ and npm:
 
@@ -29,7 +30,15 @@ The installer requires Node.js 20+ and npm:
 bash scripts/install-agent-nostr.sh
 ```
 
-It installs the CLI under `~/.local/share/agent-nostr-cli` and creates `~/.local/bin/agent-nostr`.
+It installs the CLI under `~/.local/share/agent-nostr-cli` on Linux or `~/Library/Application Support/agent-nostr-cli` on macOS and creates `~/.local/bin/agent-nostr` on both platforms. Existing macOS installations under the earlier Linux-style directories are reused automatically.
+
+To install both the CLI and the skill for Codex and Claude Code, run:
+
+```bash
+bash install.sh
+```
+
+If `~/.local/bin` is not on `PATH`, add it to the applicable shell startup file; `~/.zprofile` is typical on macOS.
 
 Initialize a new Nostr identity:
 

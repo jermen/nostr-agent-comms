@@ -4,6 +4,7 @@ set -euo pipefail
 repo=${AGENT_NOSTR_REPO:-jermen/nostr-agent-comms}
 ref=${AGENT_NOSTR_REF:-main}
 skill_name=nostr-agent-comms
+platform=$(uname -s)
 
 dry_run=0
 install_cli=1
@@ -30,6 +31,8 @@ Environment:
   AGENT_NOSTR_INSTALL_DIR
                          CLI data directory; passed to the CLI installer.
   AGENT_NOSTR_BIN_DIR    CLI binary directory; passed to the CLI installer.
+  XDG_DATA_HOME          Overrides the platform-specific CLI data directory.
+  XDG_CONFIG_HOME        Overrides the platform-specific CLI config directory.
   CODEX_HOME             Codex config root. Default: ~/.codex
   CLAUDE_CONFIG_DIR      Claude Code config root. Default: ~/.claude
 USAGE
@@ -103,6 +106,7 @@ done
 
 codex_root=${CODEX_HOME:-"$HOME/.codex"}
 claude_root=${CLAUDE_CONFIG_DIR:-"$HOME/.claude"}
+cli_bin_dir=${AGENT_NOSTR_BIN_DIR:-"$HOME/.local/bin"}
 codex_skill="$codex_root/skills/$skill_name"
 claude_skill="$claude_root/skills/$skill_name"
 
@@ -155,7 +159,7 @@ cat <<EOF2
 nostr-agent-comms installation complete.
 
 CLI:
-  ${AGENT_NOSTR_BIN_DIR:-$HOME/.local/bin}/agent-nostr
+  ${cli_bin_dir}/agent-nostr
 EOF2
 
 if (( install_codex )); then
@@ -165,8 +169,9 @@ if (( install_claude )); then
   printf 'Claude Code skill:\n  %s\n' "$claude_skill"
 fi
 
-cat <<'EOF2'
-
-If ~/.local/bin is not already on PATH, add it before using agent-nostr.
-Start a new Codex/Claude Code session if the newly installed skill is not detected immediately.
-EOF2
+if [[ $platform == Darwin ]]; then
+  printf '\nIf %s is not already on PATH, add it in ~/.zprofile before using agent-nostr.\n' "$cli_bin_dir"
+else
+  printf '\nIf %s is not already on PATH, add it before using agent-nostr.\n' "$cli_bin_dir"
+fi
+printf '%s\n' 'Start a new Codex/Claude Code session if the newly installed skill is not detected immediately.'
