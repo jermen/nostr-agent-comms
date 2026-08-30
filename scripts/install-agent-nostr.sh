@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 src_dir="$script_dir/agent-nostr"
 platform=$(uname -s)
 case "$platform" in
@@ -49,10 +49,10 @@ if (( dry_run )); then
 fi
 
 mkdir -p "$install_dir" "$bin_dir"
-cp "$src_dir/package.json" "$src_dir/agent-nostr.mjs" "$install_dir/"
+cp "$src_dir/package.json" "$src_dir/package-lock.json" "$src_dir/agent-nostr.mjs" "$install_dir/"
 (
   cd "$install_dir"
-  npm install --omit=dev --no-audit --no-fund
+  npm ci --omit=dev --no-audit --no-fund
 )
 chmod 755 "$install_dir/agent-nostr.mjs"
 ln -sfn "$install_dir/agent-nostr.mjs" "$bin_dir/agent-nostr"

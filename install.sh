@@ -70,7 +70,7 @@ trap cleanup EXIT
 source_root=""
 script_path=${BASH_SOURCE[0]:-}
 if [[ -n "$script_path" && -f "$script_path" ]]; then
-  candidate=$(CDPATH= cd -- "$(dirname -- "$script_path")" && pwd)
+  candidate=$(CDPATH='' cd -- "$(dirname -- "$script_path")" && pwd)
   if [[ -f "$candidate/SKILL.md" && -f "$candidate/scripts/install-agent-nostr.sh" ]]; then
     source_root=$candidate
   fi
@@ -100,8 +100,9 @@ for required in \
   "$source_root/SKILL.md" \
   "$source_root/scripts/install-agent-nostr.sh" \
   "$source_root/scripts/agent-nostr/agent-nostr.mjs" \
-  "$source_root/scripts/agent-nostr/package.json"; do
-  [[ -f "$required" ]] || { echo "Invalid source tree: missing ${required#$source_root/}" >&2; exit 1; }
+  "$source_root/scripts/agent-nostr/package.json" \
+  "$source_root/scripts/agent-nostr/package-lock.json"; do
+  [[ -f "$required" ]] || { echo "Invalid source tree: missing ${required#"$source_root"/}" >&2; exit 1; }
 done
 
 codex_root=${CODEX_HOME:-"$HOME/.codex"}
@@ -154,14 +155,11 @@ if (( dry_run )); then
   exit 0
 fi
 
-cat <<EOF2
+printf '\nnostr-agent-comms installation complete.\n'
 
-nostr-agent-comms installation complete.
-
-CLI:
-  ${cli_bin_dir}/agent-nostr
-EOF2
-
+if (( install_cli )); then
+  printf 'CLI:\n  %s/agent-nostr\n' "$cli_bin_dir"
+fi
 if (( install_codex )); then
   printf 'Codex skill:\n  %s\n' "$codex_skill"
 fi
@@ -169,9 +167,11 @@ if (( install_claude )); then
   printf 'Claude Code skill:\n  %s\n' "$claude_skill"
 fi
 
-if [[ $platform == Darwin ]]; then
-  printf '\nIf %s is not already on PATH, add it in ~/.zprofile before using agent-nostr.\n' "$cli_bin_dir"
-else
-  printf '\nIf %s is not already on PATH, add it before using agent-nostr.\n' "$cli_bin_dir"
+if (( install_cli )); then
+  if [[ $platform == Darwin ]]; then
+    printf '\nIf %s is not already on PATH, add it in ~/.zprofile before using agent-nostr.\n' "$cli_bin_dir"
+  else
+    printf '\nIf %s is not already on PATH, add it before using agent-nostr.\n' "$cli_bin_dir"
+  fi
 fi
 printf '%s\n' 'Start a new Codex/Claude Code session if the newly installed skill is not detected immediately.'
