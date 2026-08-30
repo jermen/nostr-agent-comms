@@ -85,17 +85,19 @@ Usage:
   agent-nostr profile TARGET [--json]
   agent-nostr send TARGET [MESSAGE...] [--reply-to EVENT_ID] [--json]
   agent-nostr reply EVENT_ID [MESSAGE...] [--json]
-  agent-nostr inbox [--all] [--limit N] [--json]
+  agent-nostr inbox [--all] [--limit N] [--json]   (alias: check)
   agent-nostr reset-cursor [--json]
   agent-nostr config [--json]
   agent-nostr self-test
 
 TARGET can be an npub, nprofile, 64-character hex pubkey, NIP-05 identifier,
 or an alias configured with 'peer add'. If MESSAGE is omitted or is '-', stdin is read.
+For send and reply, everything after '--' is literal message text, never options.
 
 Security:
-  The secret key is only read from AGENT_NOSTR_KEY_FILE or ~/.config/agent-nostr/key.
-  No command prints the secret key.
+  The secret key is only read from AGENT_NOSTR_KEY_FILE or the agent-nostr config
+  directory (~/.config/agent-nostr/key on Linux, ~/Library/Application Support/
+  agent-nostr/key on macOS). No command prints the secret key.
 
 Relay behavior:
   Sending strictly follows NIP-17: recipient kind-10050 DM relays are discovered
@@ -175,6 +177,21 @@ function uniqueRelays(relays) {
       }
     } catch {
       // Ignore malformed relay hints received from the network.
+    }
+  }
+  return result
+}
+
+// Unlike uniqueRelays, user-supplied relay arguments must fail loudly:
+// silently dropping a typo would publish an incomplete kind-10050 list.
+function parseRelayArgs(inputs) {
+  const result = []
+  const seen = new Set()
+  for (const input of inputs) {
+    const value = normalizeRelay(input)
+    if (!seen.has(value)) {
+      seen.add(value)
+      result.push(value)
     }
   }
   return result
@@ -267,6 +284,12 @@ async function loadNostr() {
 async function readSecretKey(nostr) {
   let text
   try {
+    if (process.platform !== 'win32') {
+      const stat = await fs.stat(keyFile)
+      if (stat.mode & 0o077) {
+        throw new Error(`refusing to use ${keyFile}: permissions are too open; run 'chmod 600' on it`)
+      }
+    }
     text = (await fs.readFile(keyFile, 'utf8')).trim()
   } catch (err) {
     if (err?.code === 'ENOENT') throw new Error(`no identity found; run 'agent-nostr init' first`)
@@ -291,9 +314,7 @@ function authSigner(nostr, sk) {
 }
 
 function makePool(nostr) {
-  const pool = new nostr.SimplePool()
-  pool.trackRelays = true
-  return pool
+  return new nostr.SimplePool()
 }
 
 async function queryWithAuth(nostr, pool, sk, relays, filter, timeoutMs) {
@@ -315,6 +336,8 @@ async function queryWithAuth(nostr, pool, sk, relays, filter, timeoutMs) {
 }
 
 
+// 'closed automatically on eose' is SimplePool's close reason for a subscription
+// that reached EOSE; nostr-tools is pinned exactly because this string is internal.
 function hadReadSuccess(queryResult) {
   return queryResult.closes.some(item => item.reason === 'closed automatically on eose')
 }
@@ -336,9 +359,10 @@ async function publishWithAuth(nostr, pool, sk, relays, event, timeoutMs) {
 }
 
 function newestEvent(events, kind, author) {
+  // NIP-01: among replaceable events with the same timestamp, the lowest id wins.
   return events
     .filter(e => e.kind === kind && (!author || e.pubkey === author))
-    .sort((a, b) => b.created_at - a.created_at || String(b.id).localeCompare(String(a.id)))[0] || null
+    .sort((a, b) => b.created_at - a.created_at || String(a.id).localeCompare(String(b.id)))[0] || null
 }
 
 function relaysFrom10050(event) {
@@ -360,6 +384,9 @@ async function resolveNip05(input) {
   if (at <= 0 || at === input.length - 1) throw new Error(`invalid NIP-05 identifier: ${input}`)
   const name = input.slice(0, at)
   const domain = input.slice(at + 1)
+  if (isPrivateLiteralHost(domain.replace(/:\d+$/, ''))) {
+    throw new Error(`NIP-05 domain is a private or local address: ${domain}`)
+  }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 6000)
   try {
@@ -435,7 +462,9 @@ async function discoverDmRelays(nostr, pool, sk, config, target) {
     limit: 20,
   }, config.query_timeout_ms)
   if (!hadReadSuccess(q1) && !hadReadSuccess(q2)) {
-    throw new Error('could not read from any discovery relay while looking up the recipient')
+    const err = new Error('could not read from any discovery relay while looking up the recipient')
+    err.details = { relay_status: [...q1.closes, ...q2.closes] }
+    throw err
   }
   const relayList = newestEvent(q2.events, KIND_RELAY_LIST, target.pubkey)
   const expanded = uniqueRelays([...firstPass, ...relaysFrom10002(relayList)]).slice(0, MAX_DISCOVERY_RELAYS)
@@ -469,7 +498,11 @@ async function advertiseInbox(nostr, pool, sk, config) {
   }, sk)
   const destinations = uniqueRelays([...config.bootstrap_relays, ...config.inbox_relays])
   const results = await publishWithAuth(nostr, pool, sk, destinations, event, config.query_timeout_ms)
-  if (!results.some(r => r.ok)) throw new Error('kind-10050 relay list was rejected or unreachable on every discovery relay')
+  if (!results.some(r => r.ok)) {
+    const err = new Error('kind-10050 relay list was rejected or unreachable on every discovery relay')
+    err.details = { published_to: results }
+    throw err
+  }
   return { event_id: event.id, inbox_relays: config.inbox_relays, published_to: results }
 }
 
@@ -537,8 +570,12 @@ async function sendMessage({ nostr, pool, sk, config, targetInput, message, repl
   const messageId = nostr.pure.getEventHash({ ...chatTemplate, pubkey: selfPubkey })
 
   const recipientResults = await publishWithAuth(nostr, pool, sk, discovered.relays, recipientWrap, config.query_timeout_ms)
+  if (!recipientResults.some(r => r.ok)) {
+    const err = new Error('recipient gift wrap was not accepted by any of the recipient DM relays')
+    err.details = { recipient_relays: recipientResults }
+    throw err
+  }
   const selfResults = await publishWithAuth(nostr, pool, sk, ownInbox, selfWrap, config.query_timeout_ms)
-  if (!recipientResults.some(r => r.ok)) throw new Error('recipient gift wrap was not accepted by any of the recipient DM relays')
 
   return {
     ok: true,
@@ -570,7 +607,7 @@ async function cmdInit(args) {
     created = true
   }
   const sk = await readSecretKey(nostr)
-  if (inbox.length) config.inbox_relays = uniqueRelays(inbox)
+  if (inbox.length) config.inbox_relays = parseRelayArgs(inbox)
   await saveConfig(config)
   const result = {
     ok: true,
@@ -606,8 +643,18 @@ async function withIdentity(fn) {
 
 async function main() {
   const args = process.argv.slice(2)
+  // Everything after '--' is literal message text for send/reply, never options.
+  let literalArgs = []
+  const separator = args.indexOf('--')
+  if (separator !== -1) {
+    literalArgs = args.slice(separator + 1)
+    args.length = separator
+  }
   JSON_MODE = consumeFlag(args, '--json')
   const command = args.shift()
+  if (literalArgs.length && command !== 'send' && command !== 'reply') {
+    die(`unexpected arguments after --: ${literalArgs.join(' ')}`)
+  }
 
   if (!command || command === 'help' || command === '--help' || command === '-h') {
     console.log(usage())
@@ -651,8 +698,7 @@ async function main() {
   if (command === 'bootstrap-relays') {
     if (!args.length) die('provide at least one relay URL')
     const config = await loadConfig()
-    config.bootstrap_relays = uniqueRelays(args)
-    if (!config.bootstrap_relays.length) die('no valid relay URLs supplied')
+    config.bootstrap_relays = parseRelayArgs(args)
     await saveConfig(config)
     out({ ok: true, bootstrap_relays: config.bootstrap_relays })
     return
@@ -671,6 +717,10 @@ async function main() {
       const target = args.shift()
       if (!name || !target || args.length) die(`usage: agent-nostr peer add NAME TARGET`)
       if (!/^[A-Za-z0-9._-]+$/.test(name)) die('peer alias may only contain letters, numbers, dot, underscore, and dash')
+      // Aliases resolve before keys, so a key-shaped alias would shadow the real key.
+      if (/^[0-9a-fA-F]{64}$/.test(name) || /^(npub|nprofile|nsec)1/i.test(name)) {
+        die('peer alias must not look like a hex key or bech32 identifier; pick a short name')
+      }
       config.peers[name] = target
       await saveConfig(config)
       out({ ok: true, alias: name, target })
@@ -698,8 +748,7 @@ async function main() {
 
     if (command === 'inbox-relays') {
       if (!args.length) die('provide 1-3 public DM relay URLs')
-      const relays = uniqueRelays(args)
-      if (!relays.length) die('no valid relay URLs supplied')
+      const relays = parseRelayArgs(args)
       if (relays.length > 3) die('NIP-17 recommends keeping the DM relay list to 1-3 relays')
       config.inbox_relays = relays
       await saveConfig(config)
@@ -748,7 +797,7 @@ async function main() {
       const replyTo = consumeOption(args, '--reply-to')
       const target = args.shift()
       if (!target) die(`usage: agent-nostr send TARGET [MESSAGE...]`)
-      let message = args.join(' ')
+      let message = [...args, ...literalArgs].join(' ')
       if (!message || message === '-') message = await readStdin()
       const result = await sendMessage({ nostr, pool, sk, config, targetInput: target, message, replyTo: replyTo || null })
       out(result)
@@ -758,7 +807,7 @@ async function main() {
     if (command === 'reply') {
       const eventId = args.shift()
       if (!eventId) die(`usage: agent-nostr reply EVENT_ID [MESSAGE...]`)
-      let message = args.join(' ')
+      let message = [...args, ...literalArgs].join(' ')
       if (!message || message === '-') message = await readStdin()
       const state = await loadState()
       const indexed = state.messages[eventId]
@@ -786,7 +835,11 @@ async function main() {
           : Math.max(0, now - config.initial_lookback_seconds)
       }
       const q = await queryWithAuth(nostr, pool, sk, ownInbox, filter, config.query_timeout_ms)
-      if (!hadReadSuccess(q)) throw new Error('could not read from any configured DM inbox relay; cursor was not advanced')
+      if (!hadReadSuccess(q)) {
+        const err = new Error('could not read from any configured DM inbox relay; cursor was not advanced')
+        err.details = { relay_status: q.closes }
+        throw err
+      }
       const seen = new Set(state.seen_wrap_ids)
       const wraps = q.events.filter(e => all || !seen.has(e.id))
       const messages = []
@@ -853,4 +906,4 @@ async function main() {
   })
 }
 
-main().catch(err => die(err?.message || String(err)))
+main().catch(err => die(err?.message || String(err), err?.details))
