@@ -2,6 +2,8 @@
 
 ## Install
 
+For installation directly from a GitHub `SKILL.md` URL, follow [the skill's bootstrap workflow](../SKILL.md#install-from-this-url). It downloads the full package and selects the current agent's installation directory. `bash install.sh --skills-dir DIR` installs the CLI and the full skill at `DIR/nostr-agent-comms`; add `--no-cli` to copy only the skill.
+
 The installer requires Node.js 20 or newer with npm. It does not install system packages. On macOS, install Node.js separately first if needed, for example with Homebrew or a user-scoped version manager.
 
 From the skill directory:
@@ -41,6 +43,8 @@ To reuse an existing identity, point the wrapper at an existing mode-0600 key fi
 export AGENT_NOSTR_KEY_FILE=/secure/path/to/agent-nostr-key
 agent-nostr whoami --json
 ```
+
+Both `init` and `whoami` return `npub`, `nprofile`, and `nostr_uri`. Share `npub` as the stable handle; `nprofile` embeds up to three configured inbox/discovery relay hints and `nostr_uri` is `nostr:<nprofile>`. These are public values. `init` without `--inbox` preserves an existing identity and relay configuration and does not publish anything. Neither command's public identity output proves relay reachability.
 
 Do not ask the user to paste an `nsec` into the agent conversation.
 

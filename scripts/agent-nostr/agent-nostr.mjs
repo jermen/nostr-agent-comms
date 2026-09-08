@@ -592,6 +592,19 @@ async function sendMessage({ nostr, pool, sk, config, targetInput, message, repl
   }
 }
 
+function publicIdentity(nostr, sk, config) {
+  const pubkey = nostr.pure.getPublicKey(sk)
+  const relays = uniqueRelays([...config.inbox_relays, ...config.bootstrap_relays]).slice(0, 3)
+  const nprofile = nostr.nip19.nprofileEncode({ pubkey, relays })
+  return {
+    pubkey,
+    npub: nostr.nip19.npubEncode(pubkey),
+    nprofile,
+    nostr_uri: `nostr:${nprofile}`,
+    inbox_relays: config.inbox_relays,
+  }
+}
+
 async function cmdInit(args) {
   const inbox = consumeRepeatedOption(args, '--inbox')
   if (args.length) die(`unexpected init arguments: ${args.join(' ')}`)
@@ -612,11 +625,9 @@ async function cmdInit(args) {
   const result = {
     ok: true,
     created,
-    pubkey: nostr.pure.getPublicKey(sk),
-    npub: nostr.nip19.npubEncode(nostr.pure.getPublicKey(sk)),
+    ...publicIdentity(nostr, sk, config),
     config: configFile,
     key: keyFile,
-    inbox_relays: config.inbox_relays,
   }
   if (inbox.length) {
     const pool = makePool(nostr)
@@ -742,7 +753,7 @@ async function main() {
 
     if (command === 'whoami') {
       if (args.length) die(`unexpected arguments: ${args.join(' ')}`)
-      out({ ok: true, pubkey: selfPubkey, npub: nostr.nip19.npubEncode(selfPubkey), inbox_relays: config.inbox_relays })
+      out({ ok: true, ...publicIdentity(nostr, sk, config) })
       return
     }
 
