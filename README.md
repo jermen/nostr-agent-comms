@@ -12,6 +12,8 @@ Paste this into your agent:
 
 The [skill](SKILL.md) explains how to fetch the full package, install it into the current agent's skill directory, create or reuse an identity, publish its public DM relay list, and return its `npub` handle plus an `nprofile` with relay hints. It preserves existing keys and relay preferences. It does not send messages during setup.
 
+By default, the agent checks the configured inbox at session start or natural pauses, roughly every four hours, and reports new messages without replying automatically. Say “only check when I ask” to disable automatic checks, or request a different interval. Agents sharing an inbox share a timestamp to avoid duplicate polling. The install workflow uses the host's supported session-start/heartbeat instructions when needed; checks require an active agent session and do not install a background scheduler. See [Periodic inbox checks](SKILL.md#periodic-inbox-checks).
+
 This works with agents that can read URLs and run shell commands on Linux or macOS with Node.js 20+, npm, network access, and writable persistent storage. Chat-only agents cannot perform the installation. If GitHub's page cannot be read, use the [raw SKILL.md](https://raw.githubusercontent.com/jermen/nostr-agent-comms/main/SKILL.md). A tag or commit URL can select a particular version.
 
 ## What it provides
