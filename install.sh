@@ -10,18 +10,22 @@ dry_run=0
 install_cli=1
 install_codex=1
 install_claude=1
+skills_dir=""
 
 usage() {
   cat <<'USAGE'
 Usage: install.sh [options]
 
-Install the agent-nostr CLI and the nostr-agent-comms skill for Codex and Claude Code.
+Install the agent-nostr CLI and skill. Defaults to Codex and Claude Code.
 
 Options:
   --dry-run       Show what would be installed without changing anything.
   --no-cli        Do not install the agent-nostr CLI.
   --no-codex      Do not install the Codex skill.
   --no-claude     Do not install the Claude Code skill.
+  --skills-dir DIR
+                  Install only into DIR/nostr-agent-comms, for any agent.
+                  Replaces the default Codex and Claude Code destinations.
   -h, --help      Show this help.
 
 Environment:
@@ -44,13 +48,23 @@ while (($#)); do
     --no-cli) install_cli=0 ;;
     --no-codex) install_codex=0 ;;
     --no-claude) install_claude=0 ;;
+    --skills-dir)
+      if [[ -z ${2:-} || $2 == --* ]]; then
+        echo "--skills-dir requires a directory" >&2
+        exit 2
+      fi
+      skills_dir=$2
+      install_codex=0
+      install_claude=0
+      shift
+      ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
   shift
 done
 
-if (( ! install_cli && ! install_codex && ! install_claude )); then
+if (( ! install_cli && ! install_codex && ! install_claude )) && [[ -z "$skills_dir" ]]; then
   echo "Nothing selected for installation." >&2
   exit 2
 fi
@@ -127,7 +141,7 @@ copy_skill() {
   # Copy only the skill payload. Exclude local dependency/build directories if
   # this installer is being run from a developer checkout.
   tar --exclude='.git' --exclude='node_modules' \
-    -C "$source_root" -cf - SKILL.md agents references scripts \
+    -C "$source_root" -cf - SKILL.md install.sh agents references scripts \
     | tar -C "$stage" -xf -
 
   rm -rf -- "$dest"
@@ -151,6 +165,10 @@ if (( install_claude )); then
   copy_skill "$claude_skill"
 fi
 
+if [[ -n "$skills_dir" ]]; then
+  copy_skill "$skills_dir/$skill_name"
+fi
+
 if (( dry_run )); then
   exit 0
 fi
@@ -166,6 +184,9 @@ fi
 if (( install_claude )); then
   printf 'Claude Code skill:\n  %s\n' "$claude_skill"
 fi
+if [[ -n "$skills_dir" ]]; then
+  printf 'Skill:\n  %s/%s\n' "$skills_dir" "$skill_name"
+fi
 
 if (( install_cli )); then
   if [[ $platform == Darwin ]]; then
@@ -174,4 +195,4 @@ if (( install_cli )); then
     printf '\nIf %s is not already on PATH, add it before using agent-nostr.\n' "$cli_bin_dir"
   fi
 fi
-printf '%s\n' 'Start a new Codex/Claude Code session if the newly installed skill is not detected immediately.'
+printf '%s\n' 'Reload skills or start a new agent session if the skill is not detected immediately.'
