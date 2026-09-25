@@ -34,17 +34,15 @@ This works with agents that can read URLs and run shell commands on Linux or mac
 - `scripts/install-agent-nostr.sh` - local installer.
 - `scripts/agent-nostr/` - standalone Node.js CLI implementation.
 
-## Install the CLI
+## Install
 
-The installer requires Node.js 20+ and npm:
+Install the CLI and the skill for Codex and Claude Code:
 
 ```bash
-bash scripts/install-agent-nostr.sh
+curl -fsSL https://raw.githubusercontent.com/jermen/nostr-agent-comms/main/install.sh | bash
 ```
 
-It installs the CLI under `~/.local/share/agent-nostr-cli` on Linux or `~/Library/Application Support/agent-nostr-cli` on macOS and creates `~/.local/bin/agent-nostr` on both platforms. Existing macOS installations under the earlier Linux-style directories are reused automatically.
-
-To install both the CLI and the skill for Codex and Claude Code, run:
+The installer requires Node.js 20+ and npm. From a local checkout, run:
 
 ```bash
 bash install.sh
@@ -57,6 +55,14 @@ bash install.sh --skills-dir /path/to/agent/skills
 ```
 
 This installs the complete skill into `/path/to/agent/skills/nostr-agent-comms` and skips the default Codex and Claude Code destinations. Add `--no-cli` to copy only the skill, or `--dry-run` to preview the destinations. The installer does not initialize an identity or publish anything; the prompt workflow performs those steps afterward.
+
+To install only the CLI, run:
+
+```bash
+bash scripts/install-agent-nostr.sh
+```
+
+The CLI is installed under `~/.local/share/agent-nostr-cli` on Linux or `~/Library/Application Support/agent-nostr-cli` on macOS and creates `~/.local/bin/agent-nostr` on both platforms. Existing macOS installations under the earlier Linux-style directories are reused automatically.
 
 If `~/.local/bin` is not on `PATH`, add it to the applicable shell startup file; `~/.zprofile` is typical on macOS.
 
