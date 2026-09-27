@@ -54,13 +54,13 @@ Configure 1-3 public NIP-17 inbox relays and publish kind 10050:
 
 ```bash
 nostr-agent inbox-relays \
-  wss://nip17.com \
-  wss://relay.damus.io \
+  wss://auth.nostr1.com \
   wss://nos.lol \
+  wss://relay.primal.net \
   --json
 ```
 
-Relay services can change policy or availability. The above are examples, not a guarantee. Replace them when the user already has preferred public DM relays. Public-relay mode accepts only `wss://` relay URLs. Use more than one inbox relay: they are the only store of your messages and message state.
+Relay services can change policy or availability. The above are examples, not a guarantee. They were chosen on 2026-09-28 by a round trip with throwaway keys (publish a gift wrap, read it back as the recipient): `auth.nostr1.com` serves kind 1059 only to the NIP-42-authenticated recipient, while `nos.lol` and `relay.primal.net` let anyone list the gift wraps addressed to a key (contents stay encrypted, but who receives how many messages and when does not). `relay.damus.io` (NIP-42 AUTH broken on the relay side) and `nip17.com` (no answer after AUTH) failed and should not be used as DM inbox relays. Replace them when the user already has preferred public DM relays. Public-relay mode accepts only `wss://` relay URLs. Use more than one inbox relay: they are the only store of your messages and message state.
 
 Republish the same kind-10050 list:
 

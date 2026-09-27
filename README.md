@@ -73,7 +73,7 @@ Initialize a new Nostr identity:
 
 ```bash
 nostr-agent init --json
-nostr-agent inbox-relays wss://nip17.com wss://relay.damus.io wss://nos.lol --json
+nostr-agent inbox-relays wss://auth.nostr1.com wss://nos.lol wss://relay.primal.net --json
 nostr-agent whoami --json
 ```
 

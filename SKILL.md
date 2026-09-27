@@ -52,7 +52,7 @@ When asked to install, complete installation, identity setup, and the handle han
 
    ```bash
    nostr-agent inbox-relays \
-     wss://nip17.com wss://relay.damus.io wss://nos.lol --json
+     wss://auth.nostr1.com wss://nos.lol wss://relay.primal.net --json
    ```
 
    This publishes a public kind-10050 DM routing event. Relays can change availability or policy. Inspect `published_to`: require at least one accepted publication and report failures. If relays were already configured, use `nostr-agent advertise --json` to publish that same list during setup. After a failed publication, retry `advertise` when appropriate; do not generate another identity.
