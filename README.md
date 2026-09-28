@@ -24,6 +24,7 @@ This works with agents that can read URLs and run shell commands on Linux or mac
 - A stateless inbox rebuilt from your DM relays on every call: no local message database, cursor or reply index, so every workstation with the same identity sees the same inbox.
 - Two independent, encrypted message-state dimensions: public (`unread`, `read`, `in_progress`, `done`, shared with the correspondent) and private (`read`, `todo`, `in_progress`, `done`, optional ticket ID, visible only to you).
 - Reply support with NIP-17 reply relations, resolving the sender from the relays.
+- Pasteable message references (`nostr:nevent1…`) accepted by every message command, so a prompt can say "Process message nostr:nevent1…".
 - Local private-key handling; the key is never passed on the command line.
 - JSON output intended for agent consumption.
 - User-local installation on Linux and macOS.

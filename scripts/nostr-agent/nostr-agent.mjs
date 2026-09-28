@@ -125,6 +125,8 @@ Usage:
 
 TARGET can be an npub, nprofile, 64-character hex pubkey, NIP-05 identifier,
 or an alias configured with 'peer add'. If MESSAGE is omitted or is '-', stdin is read.
+MESSAGE_ID and --reply-to accept a hex event id, note1…, nevent1… or a nostr: URI;
+every message carries its reference as 'ref' (nostr:nevent1…) to paste into prompts.
 For send and reply, everything after '--' is literal message text, never options.
 
 Inbox and message state:
@@ -758,6 +760,7 @@ function buildInbox(nostr, config, sk, selfPubkey, wraps) {
       const sender = rumor.pubkey
       messages.set(rumor.id, {
         id: rumor.id,
+        ref: messageRef(nostr, rumor.id, sender),
         wrap_id,
         sender,
         sender_npub: nostr.nip19.npubEncode(sender),
@@ -888,10 +891,24 @@ async function loadInbox(ctx, limit) {
   }
 }
 
-function parseMessageId(value) {
-  const id = String(value || '').toLowerCase()
-  if (!HEX64.test(id)) die(`message id must be a 64-character hex event id`)
-  return id
+// A NIP-21 reference users can paste into prompts. The inner kind-14 rumor
+// is never published on its own, so the reference carries no relay hints.
+function messageRef(nostr, id, author) {
+  return `nostr:${nostr.nip19.neventEncode({ id, author, kind: KIND_CHAT_MESSAGE })}`
+}
+
+// Accepts a hex event id, note1…, nevent1… or any of them as a nostr: URI.
+function parseMessageRef(nostr, value) {
+  const text = stripNostrPrefix(String(value || '').trim())
+  if (/^[0-9a-fA-F]{64}$/.test(text)) return text.toLowerCase()
+  try {
+    const decoded = nostr.nip19.decode(text)
+    if (decoded.type === 'note') return decoded.data
+    if (decoded.type === 'nevent') return decoded.data.id
+  } catch {
+    // Reported below.
+  }
+  die('message must be a 64-character hex event id, note1…, nevent1… or a nostr: URI')
 }
 
 function findMessage(inbox, messageId) {
@@ -1050,6 +1067,7 @@ async function sendMessage({ nostr, pool, sk, config, targetInput, message, repl
     },
     reply_to: replyTo,
     message_id: messageId,
+    message_ref: messageRef(nostr, messageId, selfPubkey),
     recipient_wrap_id: recipientWrap.id,
     recipient_relays: recipientResults,
     self_copy: {
@@ -1313,12 +1331,13 @@ async function main() {
     }
 
     if (command === 'send') {
-      const replyTo = consumeOption(args, '--reply-to')
+      const replyOption = consumeOption(args, '--reply-to')
+      const replyTo = replyOption === undefined ? null : parseMessageRef(nostr, replyOption)
       const target = args.shift()
       if (!target) die(`usage: ${TOOL} send TARGET [MESSAGE...]`)
       let message = [...args, ...literalArgs].join(' ')
       if (!message || message === '-') message = await readStdin()
-      const result = await sendMessage({ nostr, pool, sk, config, targetInput: target, message, replyTo: replyTo || null })
+      const result = await sendMessage({ nostr, pool, sk, config, targetInput: target, message, replyTo })
       out(result)
       return
     }
@@ -1327,7 +1346,7 @@ async function main() {
       const limit = consumeLimit(args, config)
       const eventId = args.shift()
       if (!eventId) die(`usage: ${TOOL} reply MESSAGE_ID [MESSAGE...]`)
-      const messageId = parseMessageId(eventId)
+      const messageId = parseMessageRef(nostr, eventId)
       let message = [...args, ...literalArgs].join(' ')
       if (!message || message === '-') message = await readStdin()
       if (!message.trim()) throw new Error('message is empty')
@@ -1388,7 +1407,7 @@ async function main() {
       const limit = consumeLimit(args, config)
       const [eventId, ...rest] = args
       if (!eventId || rest.length) die(`usage: ${TOOL} message ${action} MESSAGE_ID`)
-      const messageId = parseMessageId(eventId)
+      const messageId = parseMessageRef(nostr, eventId)
       const inbox = await loadInbox(ctx, limit)
       const message = findMessage(inbox, messageId)
       out(action === 'show' ? { ok: true, message } : await openMessage(ctx, inbox, message))
@@ -1405,7 +1424,7 @@ async function main() {
       const limit = consumeLimit(args, config)
       const [eventId, stateArg, ...rest] = args
       if (!eventId || !stateArg || rest.length) die(stateUsage)
-      const messageId = parseMessageId(eventId)
+      const messageId = parseMessageRef(nostr, eventId)
       // The CLI spells states with '-', the wire format with '_'.
       const state = stateArg.replace(/-/g, '_')
       if (!PUBLISHABLE_STATES[scope].includes(state)) {
