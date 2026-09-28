@@ -127,6 +127,7 @@ Each message includes:
 ```json
 {
   "id": "<inner kind-14 event id>",
+  "ref": "nostr:nevent1...",
   "sender": "<hex pubkey>",
   "sender_npub": "npub1...",
   "sender_alias": "codex",
@@ -163,6 +164,16 @@ Show one message, incoming or sent:
 
 ```bash
 nostr-agent message show <message-id> --json
+```
+
+## Message references
+
+`ref` is a NIP-21 URI (`nostr:nevent1…`) that encodes the message id, its author and kind 14, without relay hints: the inner message is only retrievable from your own inbox. It is meant for prompts and notes, e.g. "Process message nostr:nevent1…". Wherever a command takes `<message-id>` (`message`, `state`, `reply`, `send --reply-to`), it also accepts the ref, the bare `nevent1…`, a `note1…` or the hex id. `send` and `reply` return the new message's `message_ref`.
+
+Link a ticket created for a message:
+
+```bash
+nostr-agent state private nostr:nevent1... in-progress --ticket DMDOX-337 --json
 ```
 
 `inbox`, `message`, `state` and `reply` accept `--limit N` (1-5000): the maximum number of gift wraps fetched per relay, default 2000 or the config's `inbox_limit`. State events count against the limit too. Relays are paged, so a relay cap below the limit does not truncate the result.

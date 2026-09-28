@@ -89,7 +89,8 @@ test('stateless inbox, public/private message state and reply', async t => {
 
   let messageId
   await t.test('1-2. B sees an unread message without any local state', async () => {
-    messageId = (await run('a', ['send', b.npub], { input: 'Restart db02' })).message_id
+    const sent = await run('a', ['send', b.npub], { input: 'Restart db02' })
+    messageId = sent.message_id
     const inbox = await run('b', ['inbox'])
     assert.equal(inbox.messages.length, 1)
     const message = inbox.messages[0]
@@ -100,11 +101,25 @@ test('stateless inbox, public/private message state and reply', async t => {
     assert.equal(message.public_state, 'unread')
     assert.equal(message.private_state, null)
     assert.equal(message.ticket_id, null)
+    // The pasteable NIP-21 reference names the message, its author and kind 14.
+    assert.match(message.ref, /^nostr:nevent1[02-9ac-hj-np-z]+$/)
+    assert.deepEqual(nip19.decode(message.ref.slice(6)).data, { id: messageId, author: a.pubkey, kind: 14, relays: [] })
+    assert.equal(sent.message_ref, message.ref)
     assert.equal((await run('b', ['inbox', 'count'])).count, 1)
   })
 
+  await t.test('message references work wherever a message id does', async () => {
+    const ref = find(await run('b', ['inbox']), messageId).ref
+    for (const form of [ref, ref.slice(6), nip19.noteEncode(messageId), `nostr:${nip19.noteEncode(messageId)}`, messageId.toUpperCase()]) {
+      assert.equal((await run('b', ['message', 'show', form])).message.id, messageId, form)
+    }
+    const invalid = await run('b', ['message', 'show', 'nostr:npub1invalid'], { expected: 1 })
+    assert.match(invalid.error, /nevent1/)
+    await run('b', ['message', 'show', `nostr:${b.npub}`], { expected: 1 })
+  })
+
   await t.test('3. opening publishes public read to A and private read to B', async () => {
-    const opened = await run('b', ['message', 'open', messageId])
+    const opened = await run('b', ['message', 'open', find(await run('b', ['inbox']), messageId).ref])
     assert.equal(opened.changed, true)
     assert.deepEqual(opened.updates.map(u => [u.scope, u.state]), [['public', 'read'], ['private', 'read']])
     assert.equal(opened.updates[0].correspondent.ok, true)
@@ -140,7 +155,8 @@ test('stateless inbox, public/private message state and reply', async t => {
   })
 
   await t.test('6-7. the ticket survives later private transitions until cleared', async () => {
-    await run('b', ['state', 'private', messageId, 'in-progress', '--ticket', 'DMDOX-330'])
+    const ref = find(await run('b', ['inbox']), messageId).ref
+    await run('b', ['state', 'private', ref.slice(6), 'in-progress', '--ticket', 'DMDOX-330'])
     let message = (await run('b', ['message', 'show', messageId])).message
     assert.equal(message.private_state, 'in_progress')
     assert.equal(message.ticket_id, 'DMDOX-330')
@@ -180,7 +196,7 @@ test('stateless inbox, public/private message state and reply', async t => {
   })
 
   await t.test('10. reply resolves the sender from the relays', async () => {
-    const reply = await run('b2', ['reply', messageId], { input: 'db02 restarted' })
+    const reply = await run('b2', ['reply', `nostr:${nip19.noteEncode(messageId)}`], { input: 'db02 restarted' })
     assert.equal(reply.to.pubkey, a.pubkey)
     assert.equal(reply.reply_to, messageId)
     const received = find(await run('a', ['inbox']), reply.message_id)
