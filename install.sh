@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo=${AGENT_NOSTR_REPO:-jermen/nostr-agent-comms}
-ref=${AGENT_NOSTR_REF:-main}
+# NOSTR_AGENT_* wins; the pre-rename AGENT_NOSTR_* names keep working.
+repo=${NOSTR_AGENT_REPO:-${AGENT_NOSTR_REPO:-jermen/nostr-agent-comms}}
+ref=${NOSTR_AGENT_REF:-${AGENT_NOSTR_REF:-main}}
 skill_name=nostr-agent-comms
 platform=$(uname -s)
 
@@ -16,11 +17,11 @@ usage() {
   cat <<'USAGE'
 Usage: install.sh [options]
 
-Install the agent-nostr CLI and skill. Defaults to Codex and Claude Code.
+Install the nostr-agent CLI and skill. Defaults to Codex and Claude Code.
 
 Options:
   --dry-run       Show what would be installed without changing anything.
-  --no-cli        Do not install the agent-nostr CLI.
+  --no-cli        Do not install the nostr-agent CLI.
   --no-codex      Do not install the Codex skill.
   --no-claude     Do not install the Claude Code skill.
   --skills-dir DIR
@@ -29,12 +30,13 @@ Options:
   -h, --help      Show this help.
 
 Environment:
-  AGENT_NOSTR_REPO       GitHub repository to download when run via curl.
+  NOSTR_AGENT_REPO       GitHub repository to download when run via curl.
                          Default: jermen/nostr-agent-comms
-  AGENT_NOSTR_REF        Git ref to download. Default: main
-  AGENT_NOSTR_INSTALL_DIR
+  NOSTR_AGENT_REF        Git ref to download. Default: main
+  NOSTR_AGENT_INSTALL_DIR
                          CLI data directory; passed to the CLI installer.
-  AGENT_NOSTR_BIN_DIR    CLI binary directory; passed to the CLI installer.
+  NOSTR_AGENT_BIN_DIR    CLI binary directory; passed to the CLI installer.
+                         The pre-rename AGENT_NOSTR_* names are still accepted.
   XDG_DATA_HOME          Overrides the platform-specific CLI data directory.
   XDG_CONFIG_HOME        Overrides the platform-specific CLI config directory.
   CODEX_HOME             Codex config root. Default: ~/.codex
@@ -85,7 +87,7 @@ source_root=""
 script_path=${BASH_SOURCE[0]:-}
 if [[ -n "$script_path" && -f "$script_path" ]]; then
   candidate=$(CDPATH='' cd -- "$(dirname -- "$script_path")" && pwd)
-  if [[ -f "$candidate/SKILL.md" && -f "$candidate/scripts/install-agent-nostr.sh" ]]; then
+  if [[ -f "$candidate/SKILL.md" && -f "$candidate/scripts/install-nostr-agent.sh" ]]; then
     source_root=$candidate
   fi
 fi
@@ -112,16 +114,16 @@ fi
 
 for required in \
   "$source_root/SKILL.md" \
-  "$source_root/scripts/install-agent-nostr.sh" \
-  "$source_root/scripts/agent-nostr/agent-nostr.mjs" \
-  "$source_root/scripts/agent-nostr/package.json" \
-  "$source_root/scripts/agent-nostr/package-lock.json"; do
+  "$source_root/scripts/install-nostr-agent.sh" \
+  "$source_root/scripts/nostr-agent/nostr-agent.mjs" \
+  "$source_root/scripts/nostr-agent/package.json" \
+  "$source_root/scripts/nostr-agent/package-lock.json"; do
   [[ -f "$required" ]] || { echo "Invalid source tree: missing ${required#"$source_root"/}" >&2; exit 1; }
 done
 
 codex_root=${CODEX_HOME:-"$HOME/.codex"}
 claude_root=${CLAUDE_CONFIG_DIR:-"$HOME/.claude"}
-cli_bin_dir=${AGENT_NOSTR_BIN_DIR:-"$HOME/.local/bin"}
+cli_bin_dir=${NOSTR_AGENT_BIN_DIR:-${AGENT_NOSTR_BIN_DIR:-"$HOME/.local/bin"}}
 codex_skill="$codex_root/skills/$skill_name"
 claude_skill="$claude_root/skills/$skill_name"
 
@@ -151,9 +153,9 @@ copy_skill() {
 
 if (( install_cli )); then
   if (( dry_run )); then
-    bash "$source_root/scripts/install-agent-nostr.sh" --dry-run
+    bash "$source_root/scripts/install-nostr-agent.sh" --dry-run
   else
-    bash "$source_root/scripts/install-agent-nostr.sh"
+    bash "$source_root/scripts/install-nostr-agent.sh"
   fi
 fi
 
@@ -176,7 +178,7 @@ fi
 printf '\nnostr-agent-comms installation complete.\n'
 
 if (( install_cli )); then
-  printf 'CLI:\n  %s/agent-nostr\n' "$cli_bin_dir"
+  printf 'CLI:\n  %s/nostr-agent\n' "$cli_bin_dir"
 fi
 if (( install_codex )); then
   printf 'Codex skill:\n  %s\n' "$codex_skill"
@@ -190,9 +192,9 @@ fi
 
 if (( install_cli )); then
   if [[ $platform == Darwin ]]; then
-    printf '\nIf %s is not already on PATH, add it in ~/.zprofile before using agent-nostr.\n' "$cli_bin_dir"
+    printf '\nIf %s is not already on PATH, add it in ~/.zprofile before using nostr-agent.\n' "$cli_bin_dir"
   else
-    printf '\nIf %s is not already on PATH, add it before using agent-nostr.\n' "$cli_bin_dir"
+    printf '\nIf %s is not already on PATH, add it before using nostr-agent.\n' "$cli_bin_dir"
   fi
 fi
 printf '%s\n' 'Reload skills or start a new agent session if the skill is not detected immediately.'

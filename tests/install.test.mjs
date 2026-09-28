@@ -18,12 +18,12 @@ test('portable installation and public identity handoff', async t => {
   const identity = path.join(root, 'identity')
   const env = {
     ...process.env,
-    AGENT_NOSTR_INSTALL_DIR: cliDir,
-    AGENT_NOSTR_BIN_DIR: path.join(root, 'bin'),
-    AGENT_NOSTR_HOME: identity,
-    AGENT_NOSTR_KEY_FILE: path.join(identity, 'key'),
-    AGENT_NOSTR_CONFIG: path.join(identity, 'config.json'),
-    AGENT_NOSTR_STATE: path.join(root, 'state.json'),
+    NOSTR_AGENT_INSTALL_DIR: cliDir,
+    NOSTR_AGENT_BIN_DIR: path.join(root, 'bin'),
+    NOSTR_AGENT_HOME: identity,
+    NOSTR_AGENT_KEY_FILE: path.join(identity, 'key'),
+    NOSTR_AGENT_CONFIG: path.join(identity, 'config.json'),
+    XDG_DATA_HOME: path.join(root, 'xdg data'),
     CODEX_HOME: path.join(root, 'codex'),
     CLAUDE_CONFIG_DIR: path.join(root, 'claude'),
     npm_config_cache: path.join(root, 'npm cache'),
@@ -33,7 +33,7 @@ test('portable installation and public identity handoff', async t => {
     assert.equal(result.status, expected, result.stderr)
     return result.stdout
   }
-  const cli = (...args) => JSON.parse(run(path.join(env.AGENT_NOSTR_BIN_DIR, 'agent-nostr'), [...args, '--json']))
+  const cli = (...args) => JSON.parse(run(path.join(env.NOSTR_AGENT_BIN_DIR, 'nostr-agent'), [...args, '--json']))
   const exists = async p => fs.access(p).then(() => true, () => false)
 
   await t.test('dry run and missing argument do not create destinations', async () => {
@@ -46,8 +46,8 @@ test('portable installation and public identity handoff', async t => {
   await t.test('skill-only install carries everything needed to install again', async () => {
     run('bash', ['install.sh', '--skills-dir', skills, '--no-cli'])
     for (const file of ['SKILL.md', 'install.sh', 'agents/openai.yaml', 'references/commands.md',
-      'references/protocol.md', 'scripts/install-agent-nostr.sh', 'scripts/agent-nostr/agent-nostr.mjs',
-      'scripts/agent-nostr/package.json', 'scripts/agent-nostr/package-lock.json']) {
+      'references/protocol.md', 'scripts/install-nostr-agent.sh', 'scripts/nostr-agent/nostr-agent.mjs',
+      'scripts/nostr-agent/package.json', 'scripts/nostr-agent/package-lock.json']) {
       assert.equal(await exists(path.join(skill, file)), true, file)
     }
     assert.equal(await exists(cliDir), false)
@@ -58,7 +58,8 @@ test('portable installation and public identity handoff', async t => {
 
   await t.test('CLI installs from the copied skill without the repository', async () => {
     run('bash', ['install.sh', '--skills-dir', skills], skill)
-    assert.equal(await exists(path.join(env.AGENT_NOSTR_BIN_DIR, 'agent-nostr')), true)
+    assert.equal(await exists(path.join(env.NOSTR_AGENT_BIN_DIR, 'nostr-agent')), true)
+    assert.equal(await exists(path.join(env.NOSTR_AGENT_BIN_DIR, 'agent-nostr')), true)
     assert.equal(await exists(identity), false)
     assert.equal(await exists(env.CODEX_HOME), false)
     assert.equal(await exists(env.CLAUDE_CONFIG_DIR), false)
@@ -69,9 +70,9 @@ test('portable installation and public identity handoff', async t => {
     const first = cli('init')
     assert.equal(first.created, true)
     assert.deepEqual(first.inbox_relays, [])
-    const config = JSON.parse(await fs.readFile(env.AGENT_NOSTR_CONFIG, 'utf8'))
+    const config = JSON.parse(await fs.readFile(env.NOSTR_AGENT_CONFIG, 'utf8'))
     config.inbox_relays = ['wss://example.com', 'wss://relay.example.com']
-    await fs.writeFile(env.AGENT_NOSTR_CONFIG, JSON.stringify(config))
+    await fs.writeFile(env.NOSTR_AGENT_CONFIG, JSON.stringify(config))
     const second = cli('init')
     const publicInfo = cli('whoami')
     assert.equal(second.created, false)
@@ -86,13 +87,27 @@ test('portable installation and public identity handoff', async t => {
     assert.equal(profile.data.relays.length, 3)
     assert.equal(publicInfo.nostr_uri, `nostr:${publicInfo.nprofile}`)
     assert.deepEqual(Object.keys(publicInfo).sort(), ['ok', 'pubkey', 'npub', 'nprofile', 'nostr_uri', 'inbox_relays'].sort())
-    assert.equal((await fs.stat(env.AGENT_NOSTR_KEY_FILE)).mode & 0o777, 0o600)
-    assert.equal(await exists(env.AGENT_NOSTR_STATE), false)
+    assert.equal((await fs.stat(env.NOSTR_AGENT_KEY_FILE)).mode & 0o777, 0o600)
+    assert.equal(await exists(env.XDG_DATA_HOME), false)
+  })
+
+  await t.test('deprecated agent-nostr name and AGENT_NOSTR_* variables still work', async () => {
+    const expected = cli('whoami').npub
+    const legacyEnv = { ...env, AGENT_NOSTR_HOME: identity, AGENT_NOSTR_KEY_FILE: env.NOSTR_AGENT_KEY_FILE,
+      AGENT_NOSTR_CONFIG: env.NOSTR_AGENT_CONFIG }
+    delete legacyEnv.NOSTR_AGENT_HOME
+    delete legacyEnv.NOSTR_AGENT_KEY_FILE
+    delete legacyEnv.NOSTR_AGENT_CONFIG
+    const result = spawnSync(path.join(env.NOSTR_AGENT_BIN_DIR, 'agent-nostr'), ['whoami', '--json'], { env: legacyEnv, encoding: 'utf8' })
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(JSON.parse(result.stdout).npub, expected)
+    const human = spawnSync(path.join(env.NOSTR_AGENT_BIN_DIR, 'agent-nostr'), ['config'], { env: legacyEnv, encoding: 'utf8' })
+    assert.match(human.stderr, /agent-nostr is deprecated; use nostr-agent/)
   })
 
   await t.test('invalid existing key is not replaced during initialization', async () => {
-    await fs.writeFile(env.AGENT_NOSTR_KEY_FILE, 'invalid-key', { mode: 0o600 })
-    run(path.join(env.AGENT_NOSTR_BIN_DIR, 'agent-nostr'), ['init', '--json'], repo, 1)
-    assert.equal(await fs.readFile(env.AGENT_NOSTR_KEY_FILE, 'utf8'), 'invalid-key')
+    await fs.writeFile(env.NOSTR_AGENT_KEY_FILE, 'invalid-key', { mode: 0o600 })
+    run(path.join(env.NOSTR_AGENT_BIN_DIR, 'nostr-agent'), ['init', '--json'], repo, 1)
+    assert.equal(await fs.readFile(env.NOSTR_AGENT_KEY_FILE, 'utf8'), 'invalid-key')
   })
 })
