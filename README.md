@@ -4,6 +4,10 @@ Agent Skill and CLI wrapper for interoperable agent-to-agent communication over 
 
 The goal is to give Claude Code, Codex, and other coding agents a small, reliable interface instead of making them construct NIP-17/NIP-44/NIP-59 events or use low-level tools such as `nak` directly.
 
+![nostr-agent whoami, inbox, reply and message state](docs/cli.gif)
+
+*The CLI the skill drives, here against a local test relay. Agents read its JSON output directly.*
+
 ## Install with a prompt
 
 Paste this into your agent:
